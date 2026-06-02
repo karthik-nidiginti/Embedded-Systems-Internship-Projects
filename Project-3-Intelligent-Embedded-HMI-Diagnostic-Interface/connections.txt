@@ -1,0 +1,75 @@
+Project: Intelligent Embedded HMI & Diagnostic Interface
+
+ESP32 Connections
+-----------------
+
+Battery Cell Inputs (Potentiometers)
+
+Potentiometer 1
+VCC  -> 3.3V
+GND  -> GND
+SIG  -> GPIO32
+
+Potentiometer 2
+VCC  -> 3.3V
+GND  -> GND
+SIG  -> GPIO33
+
+Potentiometer 3
+VCC  -> 3.3V
+GND  -> GND
+SIG  -> GPIO34
+
+Potentiometer 4
+VCC  -> 3.3V
+GND  -> GND
+SIG  -> GPIO35
+
+
+LED Indicators
+
+Green LED
+Anode (+) -> GPIO12 through 220Ω resistor
+Cathode (-) -> GND
+
+Yellow LED
+Anode (+) -> GPIO13 through 220Ω resistor
+Cathode (-) -> GND
+
+Red LED
+Anode (+) -> GPIO14 through 220Ω resistor
+Cathode (-) -> GND
+
+
+Buzzer
+
+Positive (+) -> GPIO15
+Negative (-) -> GND
+
+
+Relay Module
+
+VCC -> 5V
+GND -> GND
+IN  -> GPIO16
+
+
+I2C LCD (16x2)
+
+VCC -> 5V
+GND -> GND
+SDA -> GPIO21
+SCL -> GPIO22
+
+
+Blynk Datastreams
+
+V0 -> Cell1 Voltage
+V1 -> Cell2 Voltage
+V2 -> Cell3 Voltage
+V3 -> Cell4 Voltage
+V4 -> Pack Average Voltage
+V5 -> Imbalance Percentage
+V6 -> Health Status
+V7 -> Strongest Cell
+V8 -> Weakest Cell
