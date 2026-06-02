@@ -1,0 +1,55 @@
+Fault-Tolerant Embedded Runtime System
+
+ESP32-S3 Connections
+
+Sensor 1 (Potentiometer)
+VCC -> 3.3V
+GND -> GND
+SIG -> GPIO4
+
+Sensor 2 (Potentiometer)
+VCC -> 3.3V
+GND -> GND
+SIG -> GPIO5
+
+Sensor 3 (Potentiometer)
+VCC -> 3.3V
+GND -> GND
+SIG -> GPIO6
+
+Sensor 4 (Potentiometer)
+VCC -> 3.3V
+GND -> GND
+SIG -> GPIO7
+
+Relay Module
+VCC -> 5V
+GND -> GND
+IN -> GPIO15
+
+Normal LED
+Anode -> GPIO16
+Cathode -> GND
+
+Degraded LED
+Anode -> GPIO17
+Cathode -> GND
+
+Failsafe LED
+Anode -> GPIO18
+Cathode -> GND
+
+Shutdown LED
+Anode -> GPIO19
+Cathode -> GND
+
+Blynk Virtual Pins
+
+V0 -> Sensor 1
+V1 -> Sensor 2
+V2 -> Sensor 3
+V3 -> Sensor 4
+V4 -> System State
+V5 -> Fault Count
+V6 -> Relay Status
+V7 -> Uptime
