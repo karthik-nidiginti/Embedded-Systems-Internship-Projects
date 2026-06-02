@@ -1,0 +1,136 @@
+{
+  "version": 1,
+  "author": "Karthik",
+  "editor": "wokwi",
+  "parts": [
+    {
+      "type": "board-esp32-devkit-c-v4",
+      "id": "esp",
+      "top": 20,
+      "left": 180,
+      "attrs": {}
+    },
+
+    {
+      "type": "wokwi-potentiometer",
+      "id": "pot1",
+      "top": -80,
+      "left": 20,
+      "attrs": {}
+    },
+
+    {
+      "type": "wokwi-potentiometer",
+      "id": "pot2",
+      "top": -80,
+      "left": 120,
+      "attrs": {}
+    },
+
+    {
+      "type": "wokwi-potentiometer",
+      "id": "pot3",
+      "top": -80,
+      "left": 220,
+      "attrs": {}
+    },
+
+    {
+      "type": "wokwi-potentiometer",
+      "id": "pot4",
+      "top": -80,
+      "left": 320,
+      "attrs": {}
+    },
+
+    {
+      "type": "wokwi-led",
+      "id": "green",
+      "top": 10,
+      "left": 20,
+      "attrs": { "color": "green" }
+    },
+
+    {
+      "type": "wokwi-led",
+      "id": "yellow",
+      "top": 60,
+      "left": 20,
+      "attrs": { "color": "yellow" }
+    },
+
+    {
+      "type": "wokwi-led",
+      "id": "red",
+      "top": 110,
+      "left": 20,
+      "attrs": { "color": "red" }
+    },
+
+    {
+      "type": "wokwi-buzzer",
+      "id": "buzzer",
+      "top": 260,
+      "left": 30,
+      "attrs": {}
+    },
+
+    {
+      "type": "wokwi-relay-module",
+      "id": "relay",
+      "top": 260,
+      "left": 320,
+      "attrs": {}
+    },
+
+    {
+      "type": "wokwi-lcd1602",
+      "id": "lcd",
+      "top": 180,
+      "left": 520,
+      "attrs": {
+        "pins": "i2c"
+      }
+    }
+  ],
+
+  "connections": [
+
+    ["pot1:VCC", "esp:3V3", "red"],
+    ["pot1:GND", "esp:GND.1", "black"],
+    ["pot1:SIG", "esp:32", "green"],
+
+    ["pot2:VCC", "esp:3V3", "red"],
+    ["pot2:GND", "esp:GND.1", "black"],
+    ["pot2:SIG", "esp:33", "green"],
+
+    ["pot3:VCC", "esp:3V3", "red"],
+    ["pot3:GND", "esp:GND.1", "black"],
+    ["pot3:SIG", "esp:34", "green"],
+
+    ["pot4:VCC", "esp:3V3", "red"],
+    ["pot4:GND", "esp:GND.1", "black"],
+    ["pot4:SIG", "esp:35", "green"],
+
+    ["green:A", "esp:12", "green"],
+    ["green:C", "esp:GND.1", "black"],
+
+    ["yellow:A", "esp:13", "yellow"],
+    ["yellow:C", "esp:GND.1", "black"],
+
+    ["red:A", "esp:14", "red"],
+    ["red:C", "esp:GND.1", "black"],
+
+    ["buzzer:1", "esp:15", "green"],
+    ["buzzer:2", "esp:GND.1", "black"],
+
+    ["relay:IN", "esp:16", "green"],
+    ["relay:VCC", "esp:5V", "red"],
+    ["relay:GND", "esp:GND.1", "black"],
+
+    ["lcd:SDA", "esp:21", "green"],
+    ["lcd:SCL", "esp:22", "green"],
+    ["lcd:VCC", "esp:5V", "red"],
+    ["lcd:GND", "esp:GND.1", "black"]
+  ]
+}
