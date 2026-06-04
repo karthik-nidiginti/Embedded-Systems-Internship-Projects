@@ -52,7 +52,7 @@ The system supports WiFi reconnection, cloud reconnection, signal strength monit
 
 Add your Wokwi project link here:
 
-https://wokwi.com/projects/YOUR_PROJECT_ID
+https://wokwi.com/projects/465858709519483905
 
 ---
 
