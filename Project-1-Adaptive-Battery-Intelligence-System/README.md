@@ -35,6 +35,13 @@ The system reads analog voltages from four battery cells, calculates pack averag
 * Wokwi Simulator
 * Blynk IoT Platform
 
+##Wokwi Simulation
+Add your Wokwi project link here:
+
+https://wokwi.com/projects/465376987727778817
+
+
+
 ## Author
 
 Karthik Nidiginti
