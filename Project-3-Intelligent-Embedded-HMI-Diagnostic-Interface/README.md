@@ -112,6 +112,11 @@ The system uses a 16x2 I2C LCD display to automatically rotate between multiple 
 * Industrial Monitoring Systems
 * IoT-Based Battery Analytics
 
+Wokwi Simulation
+Add your Wokwi project link here:
+
+https://wokwi.com/projects/465378963580763137
+
 ## Author
 
 Karthik Nidiginti
