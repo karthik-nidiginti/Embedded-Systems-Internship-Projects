@@ -1,0 +1,61 @@
+{
+  "version": 1,
+  "author": "Karthik",
+  "editor": "wokwi",
+  "parts": [
+    { "type": "wokwi-esp32-devkit-v1", "id": "esp", "top": 0, "left": 0, "attrs": {} },
+    {
+      "type": "wokwi-potentiometer",
+      "id": "pot1",
+      "top": -120,
+      "left": 280,
+      "attrs": { "value": "2048" }
+    },
+    {
+      "type": "wokwi-led",
+      "id": "ledGreen",
+      "top": -13.2,
+      "left": 147.8,
+      "attrs": { "color": "green" }
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "r1",
+      "top": 81.6,
+      "left": 181.85,
+      "rotate": 90,
+      "attrs": { "value": "220" }
+    },
+    {
+      "type": "wokwi-led",
+      "id": "ledRed",
+      "top": -13.2,
+      "left": 263,
+      "attrs": { "color": "red" }
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "r2",
+      "top": 62.4,
+      "left": 306.65,
+      "rotate": 90,
+      "attrs": { "value": "220" }
+    }
+  ],
+  "connections": [
+    [ "pot1:SIG", "esp:32", "green", [] ],
+    [ "esp:25", "ledGreen:A", "green", [] ],
+    [ "esp:26", "ledRed:A", "red", [] ],
+    [ "pot1:VCC", "esp:3V3", "red", [ "v22.7", "h-185" ] ],
+    [ "pot1:SIG", "esp:D32", "green", [ "v32.3", "h-223" ] ],
+    [ "ledGreen:A", "esp:D25", "green", [ "v0" ] ],
+    [ "ledRed:A", "esp:D26", "green", [ "v0" ] ],
+    [ "ledGreen:C", "esp:GND.1", "green", [ "v0" ] ],
+    [ "ledRed:C", "esp:GND.1", "green", [ "v0" ] ],
+    [ "r1:1", "ledGreen:A", "green", [ "h-38.4" ] ],
+    [ "r1:2", "esp:GND.1", "green", [ "h0", "v27.6" ] ],
+    [ "r2:1", "ledRed:A", "green", [ "h-48" ] ],
+    [ "r2:2", "esp:GND.1", "green", [ "h0", "v46.8" ] ]
+  ],
+  "dependencies": {}
+}
