@@ -60,6 +60,12 @@ The firmware is built completely using millis()-based timing without delay().
 | V5 | Relay Status |
 | V6 | Warning Counter |
 
+##Wokwi Simulation
+Add your Wokwi project link here:
+
+https://wokwi.com/projects/465375575917488129
+
+
 ---
 
 ## Author
