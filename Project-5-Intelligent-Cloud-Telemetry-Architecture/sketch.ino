@@ -13,39 +13,51 @@ char pass[] = "";
 #define LED_GREEN   25
 #define LED_RED     26
 
+const float LOW_THRESHOLD   = 2.5;
+const float HIGH_THRESHOLD  = 4.2;
+const float ANOMALY_MAX     = 4.5;
+const float DISCONNECT_MIN  = 0.1;
+const float VOLTAGE_DELTA   = 0.15;
+
 float voltage         = 0;
 float previousVoltage = -1;
 
 String currentState  = "NORMAL";
 String previousState = "";
 
-unsigned long sensorTimer = 0;
-unsigned long wifiTimer   = 0;
-unsigned long rssiTimer   = 0;
-unsigned long bootTime;
+bool prevLedState           = false;
+bool wifiWasDisconnected    = false;
+bool blynkWasDisconnected   = false;
+bool sensorWasDisconnected  = false;
+
+unsigned long sensorTimer    = 0;
+unsigned long wifiTimer      = 0;
+unsigned long rssiTimer      = 0;
+unsigned long dashboardTimer = 0;
+unsigned long queueTimer     = 0;
+unsigned long bootTime       = 0;
 
 int           signalRSSI   = 0;
 unsigned long eventCounter = 0;
 
-const float LOW_THRESHOLD  = 1.00;
-const float HIGH_THRESHOLD = 2.80;
-
-bool wifiWasDisconnected  = false;
-bool blynkWasDisconnected = false;
-
 const int MAX_QUEUE = 30;
-String eventQueue[MAX_QUEUE];
-int queueFront = 0;
-int queueRear  = 0;
-int queueSize  = 0;
+String    eventQueue[MAX_QUEUE];
+int       queueFront = 0;
+int       queueRear  = 0;
+int       queueSize  = 0;
 
 float readVoltage()
 {
-  return analogRead(SENSOR_PIN) * 3.3 / 4095.0;
+  long sum = 0;
+  for (int i = 0; i < 8; i++) sum += analogRead(SENSOR_PIN);
+  float adcVolt = (sum / 8.0 / 4095.0) * 3.3;
+  return adcVolt * 1.303;
 }
 
 void setLED(bool connected)
 {
+  if (connected == prevLedState) return;
+  prevLedState = connected;
   digitalWrite(LED_GREEN, connected ? HIGH : LOW);
   digitalWrite(LED_RED,   connected ? LOW  : HIGH);
 }
@@ -62,20 +74,25 @@ void enqueueEvent(String eventText)
   if (queueRear >= MAX_QUEUE) queueRear = 0;
   queueSize++;
   eventCounter++;
-  Serial.print("[EVENT] ");
+
+  Serial.print("[");
+  Serial.print((millis() - bootTime) / 1000);
+  Serial.print("s] EVENT: ");
   Serial.println(eventText);
 }
 
-void syncEventQueue()
+void drainOneEvent()
 {
+  if (queueSize == 0) return;
   if (!Blynk.connected()) return;
-  while (queueSize > 0)
-  {
-    Blynk.virtualWrite(V4, eventQueue[queueFront]);
-    queueFront++;
-    if (queueFront >= MAX_QUEUE) queueFront = 0;
-    queueSize--;
-  }
+
+  if (millis() - queueTimer < 200) return;
+  queueTimer = millis();
+
+  Blynk.virtualWrite(V4, eventQueue[queueFront]);
+  queueFront++;
+  if (queueFront >= MAX_QUEUE) queueFront = 0;
+  queueSize--;
 }
 
 void postReconnectSync()
@@ -87,18 +104,6 @@ void postReconnectSync()
   Blynk.virtualWrite(V5, queueSize);
   Blynk.virtualWrite(V6, 1);
   Blynk.virtualWrite(V7, (millis() - bootTime) / 1000);
-}
-
-void connectWiFi()
-{
-  WiFi.begin(ssid, pass);
-  Serial.print("Connecting WiFi");
-  while (WiFi.status() != WL_CONNECTED)
-  {
-    delay(500);
-    Serial.print(".");
-  }
-  Serial.println("\nWiFi Connected");
 }
 
 void checkWiFi()
@@ -141,70 +146,100 @@ void monitorRSSI()
 
 String determineState(float v)
 {
-  if (v < LOW_THRESHOLD)  return "LOW_VOLTAGE";
-  if (v > HIGH_THRESHOLD) return "HIGH_VOLTAGE";
+  if (v < DISCONNECT_MIN)  return "SENSOR_FAULT";
+  if (v < LOW_THRESHOLD)   return "LOW_VOLTAGE";
+  if (v > HIGH_THRESHOLD)  return "HIGH_VOLTAGE";
   return "NORMAL";
 }
 
 void processTelemetry()
 {
   if (millis() - sensorTimer < 1000) return;
-  sensorTimer  = millis();
+  sensorTimer = millis();
+
   voltage      = readVoltage();
   currentState = determineState(voltage);
 
+  if (voltage < DISCONNECT_MIN)
+  {
+    if (!sensorWasDisconnected)
+    {
+      enqueueEvent("Sensor Disconnected");
+      sensorWasDisconnected = true;
+    }
+  }
+  else
+  {
+    if (sensorWasDisconnected)
+    {
+      enqueueEvent("Sensor Reconnected");
+      sensorWasDisconnected = false;
+    }
+  }
+
+  if (voltage > ANOMALY_MAX)
+    enqueueEvent("Voltage Anomaly >" + String(ANOMALY_MAX) + "V");
+
   if (currentState != previousState)
   {
-    enqueueEvent("STATE CHANGE -> " + currentState + " V=" + String(voltage, 2));
+    enqueueEvent("STATE -> " + currentState + " V=" + String(voltage, 2));
     if (Blynk.connected()) Blynk.virtualWrite(V1, currentState);
     previousState = currentState;
   }
 
-  if (abs(voltage - previousVoltage) > 0.15)
+  if (abs(voltage - previousVoltage) > VOLTAGE_DELTA)
   {
-    enqueueEvent("VOLTAGE UPDATE -> " + String(voltage, 2) + "V");
+    enqueueEvent("VOLTAGE -> " + String(voltage, 2) + "V");
     if (Blynk.connected()) Blynk.virtualWrite(V0, voltage);
     previousVoltage = voltage;
   }
 
-  if (voltage < 0.05) enqueueEvent("Sensor Disconnected");
-  if (voltage > 3.25) enqueueEvent("Voltage Anomaly");
-
   Serial.println("--------------------------------");
-  Serial.print("Voltage : "); Serial.println(voltage);
+  Serial.print("Voltage : "); Serial.println(voltage, 2);
   Serial.print("State   : "); Serial.println(currentState);
   Serial.print("RSSI    : "); Serial.println(signalRSSI);
   Serial.print("Queue   : "); Serial.println(queueSize);
+  Serial.print("Events  : "); Serial.println(eventCounter);
 }
 
 void updateDashboard()
 {
-  static unsigned long dashboardTimer = 0;
   if (millis() - dashboardTimer < 5000) return;
   dashboardTimer = millis();
   if (!Blynk.connected()) return;
 
   Blynk.virtualWrite(V3, eventCounter);
   Blynk.virtualWrite(V5, queueSize);
-  Blynk.virtualWrite(V6, 1);
+  Blynk.virtualWrite(V6, Blynk.connected() ? 1 : 0);
   Blynk.virtualWrite(V7, (millis() - bootTime) / 1000);
 }
 
 void setup()
 {
   Serial.begin(115200);
+  analogReadResolution(12);
+
   pinMode(SENSOR_PIN, INPUT);
   pinMode(LED_GREEN,  OUTPUT);
   pinMode(LED_RED,    OUTPUT);
 
   setLED(false);
 
-  connectWiFi();
+  WiFi.begin(ssid, pass);
+  Serial.print("Connecting WiFi");
+  unsigned long wifiStart = millis();
+  while (WiFi.status() != WL_CONNECTED && millis() - wifiStart < 10000)
+  {
+    delay(200);
+    Serial.print(".");
+  }
+  Serial.println(WiFi.status() == WL_CONNECTED ? "\nWiFi Connected" : "\nWiFi Timeout - continuing");
+
   Blynk.config(auth);
-  Blynk.connect();
+  Blynk.connect(3000);
 
   bootTime = millis();
-  enqueueEvent("System Boot");
+  enqueueEvent("System Boot v2.0");
 }
 
 void loop()
@@ -229,16 +264,12 @@ void loop()
     {
       enqueueEvent("Blynk Reconnected");
       blynkWasDisconnected = false;
-      syncEventQueue();
       postReconnectSync();
-    }
-    else
-    {
-      syncEventQueue();
     }
   }
 
   processTelemetry();
   monitorRSSI();
   updateDashboard();
+  drainOneEvent();
 }
