@@ -1,6 +1,6 @@
-#define BLYNK_TEMPLATE_ID "TMPL3iD_qUOVk"
+#define BLYNK_TEMPLATE_ID   "TMPL3iD_qUOVk"
 #define BLYNK_TEMPLATE_NAME "Intelligent Embedded HMI and Diagnostic Interface"
-#define BLYNK_AUTH_TOKEN "LHQgvaIjitfP1h-yZSx3nfN_SpmrmX5m"
+#define BLYNK_AUTH_TOKEN    "LHQgvaIjitfP1h-yZSx3nfN_SpmrmX5m"
 
 #include <WiFi.h>
 #include <BlynkSimpleEsp32.h>
@@ -13,324 +13,262 @@ char auth[] = BLYNK_AUTH_TOKEN;
 char ssid[] = "Wokwi-GUEST";
 char pass[] = "";
 
-// Analog Inputs
-#define CELL1 32
-#define CELL2 33
-#define CELL3 34
-#define CELL4 35
+#define CELL1_PIN  32
+#define CELL2_PIN  33
+#define CELL3_PIN  34
+#define CELL4_PIN  35
 
-// Outputs
-#define GREEN_LED   12
-#define YELLOW_LED  13
-#define RED_LED     14
+#define GREEN_LED  12
+#define YELLOW_LED 13
+#define RED_LED    14
+#define BUZZER     15
+#define RELAY      16
 
-#define BUZZER      15
-#define RELAY       16
-
-// Variables
 float cell1, cell2, cell3, cell4;
+float packAverage, imbalancePercent;
+float highestVoltage, lowestVoltage;
 
-float packAverage;
-float imbalancePercent;
-
-float highestVoltage;
-float lowestVoltage;
+int strongestCell = 0;
+int weakestCell   = 0;
+int healthCode    = 0;
+int currentScreen = 0;
 
 String healthStatus = "";
 
-int strongestCell = 0;
-int weakestCell = 0;
+bool criticalFault  = false;
+bool buzzerState    = false;
+unsigned long buzzerTimer = 0;
 
-bool criticalFault = false;
-
-// Timers
 unsigned long sensorTimer = 0;
 unsigned long screenTimer = 0;
+unsigned long blynkTimer  = 0;
 
 const unsigned long sensorInterval = 500;
 const unsigned long screenInterval = 2500;
+const unsigned long blynkInterval  = 1000;
 
-int currentScreen = 0;
-
-// Read Voltage
 float readVoltage(int pin)
 {
-  int adc = analogRead(pin);
-  return (adc / 4095.0) * 3.3;
+  long sum = 0;
+  for (int i = 0; i < 8; i++) sum += analogRead(pin);
+  float adcVolt = (sum / 8.0 / 4095.0) * 3.3;
+  return adcVolt * 1.303;
+}
+
+void pulseBuzzer(unsigned long now)
+{
+  if (now - buzzerTimer >= 300)
+  {
+    buzzerTimer = now;
+    buzzerState = !buzzerState;
+    digitalWrite(BUZZER, buzzerState);
+  }
+}
+
+void lcdPrint(int col, int row, const char* fmt, ...)
+{
+  char buf[17];
+  va_list args;
+  va_start(args, fmt);
+  vsnprintf(buf, sizeof(buf), fmt, args);
+  va_end(args);
+  lcd.setCursor(col, row);
+  lcd.print(buf);
+}
+
+void lcdRow(int row, const char* fmt, ...)
+{
+  char buf[17];
+  va_list args;
+  va_start(args, fmt);
+  vsnprintf(buf, sizeof(buf), fmt, args);
+  va_end(args);
+  lcd.setCursor(0, row);
+  char padded[17];
+  snprintf(padded, sizeof(padded), "%-16s", buf);
+  lcd.print(padded);
 }
 
 void setup()
 {
   Serial.begin(115200);
-
   analogReadResolution(12);
-
   Wire.begin(21, 22);
 
   lcd.init();
   lcd.backlight();
 
-  pinMode(GREEN_LED, OUTPUT);
+  pinMode(GREEN_LED,  OUTPUT);
   pinMode(YELLOW_LED, OUTPUT);
-  pinMode(RED_LED, OUTPUT);
+  pinMode(RED_LED,    OUTPUT);
+  pinMode(BUZZER,     OUTPUT);
+  pinMode(RELAY,      OUTPUT);
 
-  pinMode(BUZZER, OUTPUT);
-  pinMode(RELAY, OUTPUT);
+  digitalWrite(GREEN_LED,  LOW);
+  digitalWrite(YELLOW_LED, LOW);
+  digitalWrite(RED_LED,    LOW);
+  digitalWrite(BUZZER,     LOW);
+  digitalWrite(RELAY,      LOW);
 
-  digitalWrite(RELAY, LOW);
-
-  lcd.setCursor(0, 0);
-  lcd.print("Smart HMI");
-  lcd.setCursor(0, 1);
-  lcd.print("Initializing");
+  lcd.setCursor(0, 0); lcd.print("Smart HMI       ");
+  lcd.setCursor(0, 1); lcd.print("Initializing... ");
 
   Blynk.begin(auth, ssid, pass);
-
   delay(2000);
 
-  lcd.clear();
+  lcd.setCursor(0, 0); lcd.print("                ");
+  lcd.setCursor(0, 1); lcd.print("                ");
 }
 
 void loop()
 {
   Blynk.run();
 
-  unsigned long currentMillis = millis();
+  unsigned long now = millis();
 
-  // Sensor Reading
-  if (currentMillis - sensorTimer >= sensorInterval)
+  if (now - sensorTimer >= sensorInterval)
   {
-    sensorTimer = currentMillis;
+    sensorTimer = now;
 
-    cell1 = readVoltage(CELL1);
-    cell2 = readVoltage(CELL2);
-    cell3 = readVoltage(CELL3);
-    cell4 = readVoltage(CELL4);
+    cell1 = readVoltage(CELL1_PIN);
+    cell2 = readVoltage(CELL2_PIN);
+    cell3 = readVoltage(CELL3_PIN);
+    cell4 = readVoltage(CELL4_PIN);
 
-    packAverage =
-      (cell1 + cell2 + cell3 + cell4) / 4.0;
+    packAverage    = (cell1 + cell2 + cell3 + cell4) / 4.0;
+    highestVoltage = max(max(cell1, cell2), max(cell3, cell4));
+    lowestVoltage  = min(min(cell1, cell2), min(cell3, cell4));
 
-    highestVoltage =
-      max(max(cell1, cell2), max(cell3, cell4));
+    if (packAverage > 0)
+      imbalancePercent = ((highestVoltage - lowestVoltage) / packAverage) * 100.0;
+    else
+      imbalancePercent = 0;
 
-    lowestVoltage =
-      min(min(cell1, cell2), min(cell3, cell4));
-
-    imbalancePercent =
-      ((highestVoltage - lowestVoltage) /
-       packAverage) * 100;
-
-    // Strongest Cell
-    if (highestVoltage == cell1) strongestCell = 1;
+    if      (highestVoltage == cell1) strongestCell = 1;
     else if (highestVoltage == cell2) strongestCell = 2;
     else if (highestVoltage == cell3) strongestCell = 3;
-    else strongestCell = 4;
+    else                              strongestCell = 4;
 
-    // Weakest Cell
-    if (lowestVoltage == cell1) weakestCell = 1;
+    if      (lowestVoltage == cell1) weakestCell = 1;
     else if (lowestVoltage == cell2) weakestCell = 2;
     else if (lowestVoltage == cell3) weakestCell = 3;
-    else weakestCell = 4;
+    else                             weakestCell = 4;
 
-    // Reset Outputs
-    digitalWrite(GREEN_LED, LOW);
-    digitalWrite(YELLOW_LED, LOW);
-    digitalWrite(RED_LED, LOW);
-
-    digitalWrite(BUZZER, LOW);
-
-    criticalFault = false;
-
-    // Health Status
-    if (imbalancePercent < 5)
+    if (lowestVoltage < 2.5)
     {
-      healthStatus = "HEALTHY";
-
-      digitalWrite(GREEN_LED, HIGH);
-
-      digitalWrite(RELAY, LOW);
+      healthStatus = "PACK FAILURE";
+      healthCode   = 4;
     }
-    else if (imbalancePercent < 20)
+    else if (highestVoltage > 4.2)
     {
-      healthStatus = "MINOR";
-
-      digitalWrite(YELLOW_LED, HIGH);
-
-      digitalWrite(RELAY, LOW);
+      healthStatus = "OVERVOLTAGE";
+      healthCode   = 3;
     }
-    else if (imbalancePercent < 40)
+    else if (imbalancePercent >= 20)
     {
       healthStatus = "CRITICAL";
-
-      digitalWrite(RED_LED, HIGH);
-
-      digitalWrite(BUZZER, HIGH);
-
-      digitalWrite(RELAY, HIGH);
-
-      criticalFault = true;
+      healthCode   = 2;
+    }
+    else if (imbalancePercent >= 5)
+    {
+      healthStatus = "MINOR IMBAL.";
+      healthCode   = 1;
     }
     else
     {
-      healthStatus = "PACK FAILURE";
-
-      digitalWrite(RED_LED, HIGH);
-
-      digitalWrite(BUZZER, HIGH);
-
-      digitalWrite(RELAY, HIGH);
-
-      criticalFault = true;
+      healthStatus = "HEALTHY";
+      healthCode   = 0;
     }
 
-    // Serial Monitor
-    Serial.println("\n===================");
+    criticalFault = (healthCode >= 2);
 
-    Serial.print("Cell1 : ");
-    Serial.println(cell1);
+    digitalWrite(GREEN_LED,  LOW);
+    digitalWrite(YELLOW_LED, LOW);
+    digitalWrite(RED_LED,    LOW);
 
-    Serial.print("Cell2 : ");
-    Serial.println(cell2);
+    if (healthCode == 0)      { digitalWrite(GREEN_LED,  HIGH); }
+    else if (healthCode == 1) { digitalWrite(YELLOW_LED, HIGH); }
+    else                      { digitalWrite(RED_LED,    HIGH); }
 
-    Serial.print("Cell3 : ");
-    Serial.println(cell3);
+    if (criticalFault)
+      digitalWrite(RELAY, HIGH);
+    else
+    {
+      digitalWrite(RELAY,  LOW);
+      digitalWrite(BUZZER, LOW);
+      buzzerState = false;
+    }
 
-    Serial.print("Cell4 : ");
-    Serial.println(cell4);
-
-    Serial.print("Average : ");
-    Serial.println(packAverage);
-
-    Serial.print("Imbalance : ");
-    Serial.print(imbalancePercent);
-    Serial.println("%");
-
-    Serial.print("Strongest : Cell");
-    Serial.println(strongestCell);
-
-    Serial.print("Weakest : Cell");
-    Serial.println(weakestCell);
-
-    Serial.print("Status : ");
-    Serial.println(healthStatus);
+    Serial.println("====================");
+    Serial.print("Cell1     : "); Serial.println(cell1, 2);
+    Serial.print("Cell2     : "); Serial.println(cell2, 2);
+    Serial.print("Cell3     : "); Serial.println(cell3, 2);
+    Serial.print("Cell4     : "); Serial.println(cell4, 2);
+    Serial.print("Average   : "); Serial.println(packAverage, 2);
+    Serial.print("Imbalance : "); Serial.print(imbalancePercent, 1); Serial.println("%");
+    Serial.print("Strongest : Cell"); Serial.println(strongestCell);
+    Serial.print("Weakest   : Cell"); Serial.println(weakestCell);
+    Serial.print("Status    : "); Serial.println(healthStatus);
   }
 
-  // LCD HMI
-  if (currentMillis - screenTimer >= screenInterval)
-  {
-    screenTimer = currentMillis;
+  if (criticalFault) pulseBuzzer(now);
 
-    // Fault Override Screen
+  if (now - screenTimer >= screenInterval)
+  {
+    screenTimer = now;
+
     if (criticalFault)
     {
-      lcd.clear();
-
-      lcd.setCursor(0, 0);
-      lcd.print("!!! WARNING !!!");
-
-      lcd.setCursor(0, 1);
-      lcd.print(healthStatus);
+      lcdRow(0, "!!! WARNING !!!");
+      lcdRow(1, "%s", healthStatus.c_str());
     }
     else
     {
       currentScreen++;
+      if (currentScreen > 4) currentScreen = 0;
 
-      if (currentScreen > 4)
-      {
-        currentScreen = 0;
-      }
-
-      lcd.clear();
-
-      // Screen 1
       if (currentScreen == 0)
       {
-        lcd.setCursor(0, 0);
-        lcd.print("C1:");
-        lcd.print(cell1, 1);
-
-        lcd.print(" C2:");
-        lcd.print(cell2, 1);
-
-        lcd.setCursor(0, 1);
-        lcd.print("C3:");
-        lcd.print(cell3, 1);
-
-        lcd.print(" C4:");
-        lcd.print(cell4, 1);
+        lcdRow(0, "C1:%.1f C2:%.1f", cell1, cell2);
+        lcdRow(1, "C3:%.1f C4:%.1f", cell3, cell4);
       }
-
-      // Screen 2
       else if (currentScreen == 1)
       {
-        lcd.setCursor(0, 0);
-        lcd.print("AVG:");
-        lcd.print(packAverage, 2);
-
-        lcd.setCursor(0, 1);
-        lcd.print("IMB:");
-        lcd.print(imbalancePercent, 1);
-        lcd.print("%");
+        lcdRow(0, "AVG: %.2fV", packAverage);
+        lcdRow(1, "IMB: %.1f%%", imbalancePercent);
       }
-
-      // Screen 3
       else if (currentScreen == 2)
       {
-        lcd.setCursor(0, 0);
-        lcd.print("MAX:C");
-        lcd.print(strongestCell);
-
-        lcd.print(" ");
-        lcd.print(highestVoltage, 2);
-
-        lcd.setCursor(0, 1);
-        lcd.print("MIN:C");
-        lcd.print(weakestCell);
-
-        lcd.print(" ");
-        lcd.print(lowestVoltage, 2);
+        lcdRow(0, "MAX:C%d  %.2fV", strongestCell, highestVoltage);
+        lcdRow(1, "MIN:C%d  %.2fV", weakestCell,   lowestVoltage);
       }
-
-      // Screen 4
       else if (currentScreen == 3)
       {
-        lcd.setCursor(0, 0);
-        lcd.print("STATUS:");
-
-        lcd.setCursor(0, 1);
-        lcd.print(healthStatus);
+        lcdRow(0, "STATUS:");
+        lcdRow(1, "%s", healthStatus.c_str());
       }
-
-      // Screen 5
       else if (currentScreen == 4)
       {
-        lcd.setCursor(0, 0);
-        lcd.print("Relay:");
-
-        if (digitalRead(RELAY))
-          lcd.print("OFF");
-        else
-          lcd.print("ON");
-
-        lcd.setCursor(0, 1);
-        lcd.print("Prot Active");
+        bool relayOn = digitalRead(RELAY);
+        lcdRow(0, "Relay: %s", relayOn ? "ON " : "OFF");
+        lcdRow(1, relayOn ? "Prot Active" : "System OK");
       }
     }
   }
 
-  // Blynk
-  Blynk.virtualWrite(V0, cell1);
-  Blynk.virtualWrite(V1, cell2);
-  Blynk.virtualWrite(V2, cell3);
-  Blynk.virtualWrite(V3, cell4);
+  if (now - blynkTimer >= blynkInterval)
+  {
+    blynkTimer = now;
 
-  Blynk.virtualWrite(V4, packAverage);
-
-  Blynk.virtualWrite(V5, imbalancePercent);
-
-  Blynk.virtualWrite(V6, healthStatus);
-
-  Blynk.virtualWrite(V7, strongestCell);
-
-  Blynk.virtualWrite(V8, weakestCell);
+    Blynk.virtualWrite(V0, cell1);
+    Blynk.virtualWrite(V1, cell2);
+    Blynk.virtualWrite(V2, cell3);
+    Blynk.virtualWrite(V3, cell4);
+    Blynk.virtualWrite(V4, packAverage);
+    Blynk.virtualWrite(V5, imbalancePercent);
+    Blynk.virtualWrite(V6, healthCode);
+    Blynk.virtualWrite(V7, healthStatus);
+    Blynk.virtualWrite(V8, strongestCell);
+    Blynk.virtualWrite(V9, weakestCell);
+  }
 }
